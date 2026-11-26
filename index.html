@@ -1,0 +1,773 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Puerto Cero Secuencias — Paola Gómez y María Isabel Taborda</title>
+<meta name="description" content="Diagramas de secuencia de las ocho funcionalidades del sistema de parqueadero Puerto Cero, con arquitectura MVC, control de transacciones y validaciones, alineados con los RF/RNF del proyecto.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&family=Space+Grotesk:wght@500;600;700&display=swap">
+<script>
+(function () {
+  try {
+    var t = localStorage.getItem("pc-theme");
+    if (t !== "dark" && t !== "light") {
+      t = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    }
+    document.documentElement.setAttribute("data-theme", t);
+  } catch (e) {}
+})();
+</script>
+<style>
+:root {
+  --bg: #f3f5f3;
+  --surface: #ffffff;
+  --fg: #17201c;
+  --muted: #5a6860;
+  --line: #d8dfda;
+  --accent: #0b6b58;
+  --accent-soft: #dcefe9;
+  --amber: #8a5a00;
+  --amber-soft: #f7ead0;
+  --font-display: "Space Grotesk", system-ui, sans-serif;
+  --font-body: "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #101614; --surface: #17201d; --fg: #e6ede9; --muted: #98a69f; --line: #2a3631;
+    --accent: #5fd0b4; --accent-soft: #173a31; --amber: #f0c36a; --amber-soft: #3a2f14;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #101614; --surface: #17201d; --fg: #e6ede9; --muted: #98a69f; --line: #2a3631;
+  --accent: #5fd0b4; --accent-soft: #173a31; --amber: #f0c36a; --amber-soft: #3a2f14;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  background: var(--bg); color: var(--fg);
+  font-family: var(--font-body); font-size: 16px; line-height: 1.6;
+  padding-block: 40px 64px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 1120px; margin: 0 auto; display: flex; flex-direction: column; gap: 48px; }
+h1, h2 { font-family: var(--font-display); text-wrap: balance; margin: 0; letter-spacing: -0.01em; }
+h1 { font-size: clamp(2rem, 5vw, 3.2rem); line-height: 1.08; font-weight: 700; }
+h2 { font-size: clamp(1.25rem, 2.6vw, 1.6rem); line-height: 1.2; font-weight: 600; }
+p { margin: 0; }
+.top { display: flex; flex-direction: column; gap: 14px; }
+.top-bar { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+.top-bar > div { min-width: 0; }
+.eyebrow { font-family: var(--font-mono); font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
+.byline { color: var(--muted); }
+
+.theme-toggle {
+  font-family: var(--font-mono); font-size: 0.78rem; letter-spacing: 0.04em;
+  padding: 8px 14px; border-radius: 999px; border: 1px solid var(--line);
+  background: var(--surface); color: var(--fg); cursor: pointer; white-space: nowrap;
+}
+.theme-toggle:hover { border-color: var(--accent); }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+.read { display: flex; flex-direction: column; gap: 16px; }
+.read p.intro { max-width: 70ch; }
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 0.94rem; }
+th, td { text-align: left; vertical-align: top; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+thead th { font-family: var(--font-display); font-size: 0.8rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+tbody th { font-weight: 600; white-space: nowrap; }
+tbody tr:last-child th, tbody tr:last-child td { border-bottom: 0; }
+td { min-width: 260px; }
+
+.index { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
+.index a {
+  display: flex; gap: 12px; align-items: baseline; padding: 12px 14px; text-decoration: none; color: var(--fg);
+  background: var(--surface); border: 1px solid var(--line); border-radius: 8px; font-weight: 500; line-height: 1.35;
+}
+.index a:hover { border-color: var(--accent); }
+.index a:focus-visible, .theme-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.index span { font-family: var(--font-mono); color: var(--accent); }
+.label { font-family: var(--font-display); font-size: 0.8rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 12px; }
+
+.seq { display: flex; flex-direction: column; gap: 18px; scroll-margin-top: 16px; }
+.seq-head { display: flex; gap: 18px; align-items: flex-start; }
+.seq-head > div { min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.seq-num {
+  font-family: var(--font-mono); font-size: 1rem; width: 40px; height: 40px; flex: none;
+  display: grid; place-items: center; border-radius: 8px; background: var(--accent); color: var(--bg);
+}
+.tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.tag { font-family: var(--font-mono); font-size: 0.78rem; padding: 2px 9px; border-radius: 999px; }
+.tag.req { background: var(--accent-soft); color: var(--accent); }
+.tag.met { background: var(--amber-soft); color: var(--amber); }
+.desc { color: var(--muted); max-width: 70ch; }
+.diagram { margin: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 20px; overflow-x: auto; }
+.diagram pre.mermaid { margin: 0; display: flex; justify-content: center; }
+.diagram pre.mermaid svg { min-width: 820px; height: auto; }
+.foot { color: var(--muted); font-size: 0.88rem; }
+
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; border: 0;
+}
+@media (max-width: 560px) {
+  body { padding-block: 24px 40px; }
+  .seq-head { gap: 12px; }
+  .diagram { padding: 12px; }
+}
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+</head>
+<body>
+
+<main class="wrap">
+  <header class="top">
+    <div class="top-bar">
+      <div>
+        <p class="eyebrow">Parqueadero Puerto Cero</p>
+        <h1>Diagramas de secuencia</h1>
+      </div>
+      <button id="theme-toggle" class="theme-toggle" type="button" aria-pressed="false">☾ Tema oscuro</button>
+    </div>
+    <p class="byline">Paola Andrea Gómez Medina y María Isabel Taborda Restrepo</p>
+  </header>
+
+  <section class="read" aria-labelledby="como-leerlos">
+    <h2 id="como-leerlos">Cómo leerlos</h2>
+    <p class="intro">Hay un diagrama por funcionalidad. Todos siguen la arquitectura MVC (RNF-06) y usan las clases del diagrama de clases. En todos, el servicio responde al controlador y el controlador responde a la pantalla. Los roles del sistema son los definidos en RNF-01: Administrador, Cajero, Contador, Técnico y Cliente.</p>
+    <div class="panel table-wrap">
+      <table>
+        <thead><tr><th scope="col">Capa</th><th scope="col">Participantes</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">Actor</th><td>Cajero, Administrador, Cliente, Técnico y Contador (roles de RNF-01).</td></tr>
+          <tr><th scope="row">Interfaz</th><td>Pantallas web: PantallaLogin, PantallaIngreso, PantallaSalida, PantallaCupos, PantallaReportes, PantallaSoporte, PantallaMonitoreo, PantallaCierreTurno.</td></tr>
+          <tr><th scope="row">Controlador</th><td>Endpoints que reciben la petición HTTP y devuelven la respuesta.</td></tr>
+          <tr><th scope="row">Servicio</th><td>Lógica de negocio y validaciones; abre y cierra las transacciones.</td></tr>
+          <tr><th scope="row">Entidades</th><td>Clases del diagrama de clases: Usuario, Vehiculo, Cupo, Tarifa, Ticket, Pago, Turno, FacturaElectronica, Camara, SolicitudSoporte, ReporteRecaudo y ReporteOcupacion.</td></tr>
+          <tr><th scope="row">Repositorio</th><td>Acceso a datos en MySQL, con un repositorio por entidad.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <nav aria-label="Funcionalidades">
+    <p class="label">Una funcionalidad por diagrama</p>
+    <ol class="index" role="list">
+      <li><a href="#diagrama-1"><span>1</span>Iniciar sesión</a></li>
+      <li><a href="#diagrama-2"><span>2</span>Registrar ingreso de vehículo</a></li>
+      <li><a href="#diagrama-3"><span>3</span>Registrar salida y pago</a></li>
+      <li><a href="#diagrama-4"><span>4</span>Consultar cupos disponibles y ocupados</a></li>
+      <li><a href="#diagrama-5"><span>5</span>Generar y exportar reporte</a></li>
+      <li><a href="#diagrama-6"><span>6</span>Radicar y gestionar una solicitud de soporte</a></li>
+      <li><a href="#diagrama-7"><span>7</span>Consultar monitoreo de cámaras</a></li>
+      <li><a href="#diagrama-8"><span>8</span>Cerrar turno y arqueo de caja</a></li>
+    </ol>
+  </nav>
+
+<section id="diagrama-1" class="seq" aria-labelledby="t1">
+  <header class="seq-head">
+    <p class="seq-num" aria-hidden="true">1</p>
+    <div>
+      <h2 id="t1">Iniciar sesión</h2>
+      <p class="tags"><span class="tag req">RNF-01</span><span class="tag met">Usuario.iniciarSesion()</span></p>
+      <p class="desc">Autenticación con contraseña cifrada (bcrypt) y acceso según el rol. Los cinco roles son los declarados en RNF-01.</p>
+    </div>
+  </header>
+  <figure class="diagram">
+    <figcaption class="sr-only">Diagrama de secuencia del inicio de sesión: el usuario envía correo y contraseña, el servicio busca el usuario por correo, compara el hash bcrypt y devuelve una sesión con el rol o un error de credenciales.</figcaption>
+<pre class="mermaid">
+sequenceDiagram
+autonumber
+actor U as Usuario
+participant P as PantallaLogin
+participant C as AuthController
+participant S as AuthService
+participant R as UsuarioRepository
+participant E as Usuario
+U-&gt;&gt;P: Ingresa correo y contraseña
+P-&gt;&gt;C: POST /login
+C-&gt;&gt;S: autenticar(correo, contrasena)
+S-&gt;&gt;R: buscarPorCorreo(correo)
+R--&gt;&gt;S: Usuario o nulo
+alt el usuario no existe
+  S--&gt;&gt;C: error de credenciales
+  C--&gt;&gt;P: 401 Credenciales inválidas
+  P--&gt;&gt;U: Muestra el mensaje de error
+else el usuario existe
+  S-&gt;&gt;E: iniciarSesion(correo, contrasena)
+  E--&gt;&gt;S: true o false (compara el hash bcrypt)
+  alt contraseña incorrecta
+    S--&gt;&gt;C: error de credenciales
+    C--&gt;&gt;P: 401 Credenciales inválidas
+    P--&gt;&gt;U: Muestra el mensaje de error
+  else contraseña correcta
+    S--&gt;&gt;C: sesión con el rol del usuario
+    C--&gt;&gt;P: 200 y redirección según el rol
+    P--&gt;&gt;U: Muestra solo las opciones de su rol
+  end
+end
+</pre>
+  </figure>
+</section>
+
+<section id="diagrama-2" class="seq" aria-labelledby="t2">
+  <header class="seq-head">
+    <p class="seq-num" aria-hidden="true">2</p>
+    <div>
+      <h2 id="t2">Registrar ingreso de vehículo</h2>
+      <p class="tags"><span class="tag req">RF-01</span><span class="tag met">Cajero.registrarIngreso()</span><span class="tag met">Administrador.registrarIngreso()</span></p>
+      <p class="desc">Una sola transacción: vehículo, cupo y ticket se confirman juntos o no se guarda nada. Actores según RF-01: Cajero o Administrador.</p>
+    </div>
+  </header>
+  <figure class="diagram">
+    <figcaption class="sr-only">Diagrama de secuencia del registro de ingreso: en una sola transacción se valida que exista tarifa vigente, se registra el vehículo si es nuevo, se verifica que no tenga un ticket abierto, se ocupa el cupo de forma condicional y se crea el ticket.</figcaption>
+<pre class="mermaid">
+sequenceDiagram
+autonumber
+actor C as Cajero o Administrador
+participant P as PantallaIngreso
+participant T as TicketController
+participant S as IngresoService
+participant FR as TarifaRepository
+participant VR as VehiculoRepository
+participant CR as CupoRepository
+participant TR as TicketRepository
+C-&gt;&gt;P: Digita la placa, el tipo y elige un cupo libre
+P-&gt;&gt;T: POST /tickets
+T-&gt;&gt;S: registrarIngreso(placa, tipo, idCupo, idCajero)
+alt placa o tipo inválidos
+  S--&gt;&gt;T: error de validación
+  T--&gt;&gt;P: 400 con el mensaje
+  P--&gt;&gt;C: Muestra el mensaje de error
+else datos válidos
+  rect rgba(120,160,220,0.18)
+    Note over S,TR: START TRANSACTION
+    S-&gt;&gt;FR: buscarVigente(tipo)
+    alt no hay tarifa vigente
+      FR--&gt;&gt;S: nulo
+      S--&gt;&gt;T: error, no hay tarifa vigente (ROLLBACK)
+      T--&gt;&gt;P: 409 con el mensaje
+      P--&gt;&gt;C: Muestra el mensaje de error
+    else hay tarifa vigente
+      FR--&gt;&gt;S: Tarifa
+      S-&gt;&gt;VR: buscarPorPlaca(placa)
+      opt el vehículo es nuevo
+        S-&gt;&gt;VR: guardar(Vehiculo)
+      end
+      S-&gt;&gt;TR: contarAbiertos(idVehiculo)
+      alt ya tiene un ticket abierto
+        S--&gt;&gt;T: error, el vehículo ya está dentro (ROLLBACK)
+        T--&gt;&gt;P: 409 con el mensaje
+        P--&gt;&gt;C: Muestra el mensaje de error
+      else no tiene ticket abierto
+        S-&gt;&gt;CR: ocuparSiLibre(idCupo)
+        Note right of CR: UPDATE cupos SET estado = Ocupado WHERE id = ? AND estado = Libre
+        alt 0 filas afectadas
+          S--&gt;&gt;T: error, el cupo ya está ocupado (ROLLBACK)
+          T--&gt;&gt;P: 409 con el mensaje
+          P--&gt;&gt;C: Muestra el mensaje de error
+        else 1 fila afectada
+          S-&gt;&gt;TR: guardar(Ticket)
+          Note over S,TR: COMMIT
+          S--&gt;&gt;T: Ticket creado
+          T--&gt;&gt;P: 201 con los datos del ticket
+          P--&gt;&gt;C: Muestra el comprobante con placa, cupo, fecha y hora
+        end
+      end
+    end
+  end
+end
+</pre>
+  </figure>
+</section>
+
+<section id="diagrama-3" class="seq" aria-labelledby="t3">
+  <header class="seq-head">
+    <p class="seq-num" aria-hidden="true">3</p>
+    <div>
+      <h2 id="t3">Registrar salida y pago</h2>
+      <p class="tags"><span class="tag req">RF-02</span><span class="tag req">RF-04</span><span class="tag req">RF-07</span></p>
+      <p class="desc">Calcula el valor, valida el turno, registra el pago, emite la factura y libera el cupo en una transacción. El Cajero emite la factura; el Contador solo la consulta (RF-07).</p>
+    </div>
+  </header>
+  <figure class="diagram">
+    <figcaption class="sr-only">Diagrama de secuencia de la salida y el pago: se calcula el valor según la permanencia, se verifica que el ticket siga abierto, se valida que el turno esté abierto y, dentro de una transacción, se cierra el ticket verificando las filas afectadas, se guarda el pago, se genera la factura y se libera el cupo.</figcaption>
+<pre class="mermaid">
+sequenceDiagram
+autonumber
+actor C as Cajero
+participant P as PantallaSalida
+participant T as SalidaController
+participant S as SalidaService
+participant TR as TicketRepository
+participant TK as Ticket
+participant TRN as TurnoRepository
+participant PR as PagoRepository
+participant CR as CupoRepository
+participant F as FacturaElectronica
+C-&gt;&gt;P: Busca el ticket por placa o número
+P-&gt;&gt;T: GET /tickets/:id
+T-&gt;&gt;S: calcularValor(idTicket)
+S-&gt;&gt;TR: buscarAbierto(idTicket)
+alt el ticket no existe o ya está cerrado
+  TR--&gt;&gt;S: nulo
+  S--&gt;&gt;T: error, ticket no válido
+  T--&gt;&gt;P: 404 con el mensaje
+  P--&gt;&gt;C: Muestra el mensaje de error
+else el ticket está abierto
+  TR--&gt;&gt;S: Ticket
+  S-&gt;&gt;TK: calcularPermanencia() y calcularValor()
+  TK--&gt;&gt;S: minutos y valor con la tarifa vigente
+  S--&gt;&gt;T: valor a pagar
+  T--&gt;&gt;P: 200 con el valor
+  P--&gt;&gt;C: Muestra el valor a pagar
+  C-&gt;&gt;P: Elige el método y confirma el pago
+  P-&gt;&gt;T: POST /pagos
+  T-&gt;&gt;S: registrarPago(idTicket, metodo, valor, idTurno)
+  alt el valor pagado no coincide con el total
+    S--&gt;&gt;T: error, valor incorrecto
+    T--&gt;&gt;P: 400 con el mensaje
+    P--&gt;&gt;C: Muestra el mensaje de error
+  else el valor coincide
+    S-&gt;&gt;TRN: buscarAbierto(idTurno)
+    alt el turno no existe o está cerrado
+      TRN--&gt;&gt;S: nulo
+      S--&gt;&gt;T: error, no hay turno abierto
+      T--&gt;&gt;P: 409 con el mensaje
+      P--&gt;&gt;C: Muestra el mensaje de error
+    else el turno está abierto
+      TRN--&gt;&gt;S: Turno
+      rect rgba(120,160,220,0.18)
+        Note over S,CR: START TRANSACTION
+        S-&gt;&gt;TR: cerrar(idTicket)
+        Note right of TR: UPDATE tickets SET estado = Cerrado WHERE id = ? AND estado = Abierto
+        alt 0 filas afectadas
+          S--&gt;&gt;T: error, el ticket ya fue cerrado (ROLLBACK)
+          T--&gt;&gt;P: 409 con el mensaje
+          P--&gt;&gt;C: Muestra el mensaje de error
+        else 1 fila afectada
+          S-&gt;&gt;PR: guardar(Pago con idTurno)
+          S-&gt;&gt;F: generar(pago)
+          S-&gt;&gt;CR: liberar(idCupo)
+          alt algún paso falla, por ejemplo factura duplicada
+            Note over S,CR: ROLLBACK, el ticket sigue abierto
+            S--&gt;&gt;T: error controlado
+            T--&gt;&gt;P: 500 con el mensaje
+            P--&gt;&gt;C: Muestra el mensaje de error
+          else todo correcto
+            Note over S,CR: COMMIT
+            S--&gt;&gt;T: pago registrado y factura emitida
+            T--&gt;&gt;P: 201 con el comprobante
+            P--&gt;&gt;C: Muestra el comprobante y el cupo liberado
+          end
+        end
+      end
+    end
+  end
+end
+</pre>
+  </figure>
+</section>
+
+<section id="diagrama-4" class="seq" aria-labelledby="t4">
+  <header class="seq-head">
+    <p class="seq-num" aria-hidden="true">4</p>
+    <div>
+      <h2 id="t4">Consultar cupos disponibles y ocupados</h2>
+      <p class="tags"><span class="tag req">RF-03</span><span class="tag met">Empleado.consultarCupos()</span></p>
+      <p class="desc">La tabla se actualiza sola cada 5 segundos, sin recargar la página. Actores según RF-03: Cliente, Empleado o Administrador (Empleado agrupa a Cajero y Técnico).</p>
+    </div>
+  </header>
+  <figure class="diagram">
+    <figcaption class="sr-only">Diagrama de secuencia de la consulta de cupos: la pantalla solicita el estado al controlador cada cinco segundos, el servicio lista los cupos por piso y la tabla se actualiza sin recargar la página.</figcaption>
+<pre class="mermaid">
+sequenceDiagram
+autonumber
+actor U as Cliente, Empleado o Administrador
+participant P as PantallaCupos
+participant C as CupoController
+participant S as CupoService
+participant R as CupoRepository
+U-&gt;&gt;P: Abre la pantalla de cupos
+loop cada 5 segundos
+  P-&gt;&gt;C: GET /cupos
+  C-&gt;&gt;S: obtenerEstado()
+  S-&gt;&gt;R: listarPorPiso()
+  R--&gt;&gt;S: lista de Cupo
+  S--&gt;&gt;C: cupos libres y ocupados por piso
+  C--&gt;&gt;P: 200 con la lista
+  P--&gt;&gt;U: Actualiza la tabla
+end
+</pre>
+  </figure>
+</section>
+
+<section id="diagrama-5" class="seq" aria-labelledby="t5">
+  <header class="seq-head">
+    <p class="seq-num" aria-hidden="true">5</p>
+    <div>
+      <h2 id="t5">Generar y exportar reporte</h2>
+      <p class="tags"><span class="tag req">RF-05</span><span class="tag met">ReporteRecaudo.exportar()</span><span class="tag met">ReporteOcupacion.exportar()</span></p>
+      <p class="desc">Reporte de recaudo o de ocupación por rango de fechas, exportable a PDF o Excel. Actores según RF-05: Administrador o Contador. El propietario recibe el reporte exportado sin necesidad de cuenta (decisión alineada con RNF-01).</p>
+    </div>
+  </header>
+  <figure class="diagram">
+    <figcaption class="sr-only">Diagrama de secuencia del reporte: el usuario elige el tipo y el rango de fechas, el servicio genera un reporte de recaudo o de ocupación según el tipo y, si el usuario lo pide, exporta el reporte a PDF o Excel.</figcaption>
+<pre class="mermaid">
+sequenceDiagram
+autonumber
+actor U as Administrador o Contador
+participant P as PantallaReportes
+participant C as ReporteController
+participant S as ReporteService
+participant PR as PagoRepository
+participant TR as TicketRepository
+participant RR as ReporteRecaudo
+participant RO as ReporteOcupacion
+U-&gt;&gt;P: Elige el tipo de reporte y el rango de fechas
+P-&gt;&gt;C: GET /reportes?tipo&amp;desde&amp;hasta
+C-&gt;&gt;S: generar(tipo, desde, hasta)
+alt rango de fechas inválido
+  S--&gt;&gt;C: error de validación
+  C--&gt;&gt;P: 400 con el mensaje
+  P--&gt;&gt;U: Muestra el mensaje de error
+else rango válido
+  alt reporte de recaudo
+    S-&gt;&gt;PR: sumarPorMetodo(desde, hasta)
+    PR--&gt;&gt;S: totales de efectivo y transferencia
+    S-&gt;&gt;RR: generar(totales, desde, hasta)
+    RR--&gt;&gt;S: ReporteRecaudo
+  else reporte de ocupación
+    S-&gt;&gt;TR: contarOcupacion(desde, hasta)
+    TR--&gt;&gt;S: tickets y cupos
+    S-&gt;&gt;RO: generar(datos, desde, hasta)
+    RO--&gt;&gt;S: ReporteOcupacion
+  end
+  S--&gt;&gt;C: Reporte
+  C--&gt;&gt;P: 200 con el reporte
+  P--&gt;&gt;U: Muestra la tabla y los totales
+  opt exportar
+    U-&gt;&gt;P: Elige PDF o Excel
+    P-&gt;&gt;C: GET /reportes/exportar
+    C-&gt;&gt;S: exportar(reporte, formato)
+    alt reporte de recaudo
+      S-&gt;&gt;RR: exportar(formato)
+      RR--&gt;&gt;S: Archivo
+    else reporte de ocupación
+      S-&gt;&gt;RO: exportar(formato)
+      RO--&gt;&gt;S: Archivo
+    end
+    S--&gt;&gt;C: Archivo
+    C--&gt;&gt;P: descarga del archivo
+    P--&gt;&gt;U: Descarga el PDF o el Excel
+  end
+end
+</pre>
+  </figure>
+</section>
+
+<section id="diagrama-6" class="seq" aria-labelledby="t6">
+  <header class="seq-head">
+    <p class="seq-num" aria-hidden="true">6</p>
+    <div>
+      <h2 id="t6">Radicar y gestionar una solicitud de soporte</h2>
+      <p class="tags"><span class="tag req">RF-08</span><span class="tag met">Cliente.radicarSolicitud()</span><span class="tag met">Administrador.gestionarSolicitud()</span></p>
+      <p class="desc">El cliente la radica en estado Pendiente y el administrador la atiende. Actores según RF-08: Cliente o Administrador.</p>
+    </div>
+  </header>
+  <figure class="diagram">
+    <figcaption class="sr-only">Diagrama de secuencia del soporte: el cliente radica la solicitud con asunto y descripción, el servicio la crea en estado pendiente y devuelve el número de ticket; después el administrador cambia el estado a pendiente, en proceso o resuelto y registra la respuesta.</figcaption>
+<pre class="mermaid">
+sequenceDiagram
+autonumber
+actor CL as Cliente
+actor AD as Administrador
+participant P as PantallaSoporte
+participant C as SolicitudController
+participant S as SolicitudService
+participant SS as SolicitudSoporte
+participant R as SolicitudRepository
+CL-&gt;&gt;P: Escribe el asunto y la descripción
+P-&gt;&gt;C: POST /solicitudes
+C-&gt;&gt;S: radicar(asunto, descripcion, idCliente)
+alt asunto o descripción vacíos
+  S--&gt;&gt;C: error de validación
+  C--&gt;&gt;P: 400 con el mensaje
+  P--&gt;&gt;CL: Muestra el mensaje de error
+else datos completos
+  S-&gt;&gt;SS: crear con estado Pendiente
+  S-&gt;&gt;R: guardar(SolicitudSoporte)
+  R--&gt;&gt;S: número de ticket de soporte
+  S--&gt;&gt;C: solicitud radicada
+  C--&gt;&gt;P: 201 con el número de ticket
+  P--&gt;&gt;CL: Muestra el número de ticket
+end
+AD-&gt;&gt;P: Abre la solicitud y elige el nuevo estado
+P-&gt;&gt;C: PUT /solicitudes/:id
+C-&gt;&gt;S: gestionar(id, estado, respuesta, idAdmin)
+S-&gt;&gt;R: buscarPorId(id)
+alt el estado no es Pendiente, En proceso o Resuelto
+  S--&gt;&gt;C: error de validación
+  C--&gt;&gt;P: 400 con el mensaje
+  P--&gt;&gt;AD: Muestra el mensaje de error
+else estado válido
+  R--&gt;&gt;S: SolicitudSoporte
+  S-&gt;&gt;SS: cambiarEstado(estado) y responder(texto)
+  S-&gt;&gt;R: guardar(SolicitudSoporte)
+  S--&gt;&gt;C: solicitud actualizada
+  C--&gt;&gt;P: 200 con el estado y la respuesta
+  P--&gt;&gt;AD: Muestra el estado y la respuesta
+end
+</pre>
+  </figure>
+</section>
+
+<section id="diagrama-7" class="seq" aria-labelledby="t7">
+  <header class="seq-head">
+    <p class="seq-num" aria-hidden="true">7</p>
+    <div>
+      <h2 id="t7">Consultar monitoreo de cámaras</h2>
+      <p class="tags"><span class="tag req">RF-06</span><span class="tag met">Camara.obtenerImagen()</span></p>
+      <p class="desc">Muestra la imagen de cada cámara activa, con una captura nueva cada 10 segundos como máximo. Actores alineados con RNF-01: Técnico, Administrador o Cajero.</p>
+    </div>
+  </header>
+  <figure class="diagram">
+    <figcaption class="sr-only">Diagrama de secuencia del monitoreo: la pantalla pide la lista de cámaras al controlador, se muestra un panel por cámara y cada diez segundos se solicita una imagen nueva; si la cámara está inactiva se muestra el aviso de cámara sin señal.</figcaption>
+<pre class="mermaid">
+sequenceDiagram
+autonumber
+actor U as Técnico, Administrador o Cajero
+participant P as PantallaMonitoreo
+participant C as MonitoreoController
+participant S as CamaraService
+participant R as CamaraRepository
+participant CM as Camara
+U-&gt;&gt;P: Abre la pantalla de monitoreo
+P-&gt;&gt;C: GET /camaras
+C-&gt;&gt;S: listarCamaras()
+S-&gt;&gt;R: buscarTodas()
+R--&gt;&gt;S: lista de Camara
+S--&gt;&gt;C: lista de cámaras con su piso y estado
+C--&gt;&gt;P: 200 con la lista
+P--&gt;&gt;U: Muestra un panel por cámara
+loop cada 10 segundos, por cada cámara
+  P-&gt;&gt;C: GET /camaras/:id/imagen
+  C-&gt;&gt;S: obtenerImagen(idCamara)
+  S-&gt;&gt;CM: estaActiva()
+  alt la cámara está inactiva
+    CM--&gt;&gt;S: false
+    S--&gt;&gt;C: aviso, cámara sin señal
+    C--&gt;&gt;P: 503 sin señal
+    P--&gt;&gt;U: Muestra el aviso de cámara sin señal
+  else la cámara está activa
+    CM--&gt;&gt;S: true
+    S-&gt;&gt;CM: obtenerImagen()
+    CM--&gt;&gt;S: Imagen
+    S--&gt;&gt;C: Imagen
+    C--&gt;&gt;P: 200 con la imagen
+    P--&gt;&gt;U: Actualiza la imagen del piso
+  end
+end
+</pre>
+  </figure>
+</section>
+
+<section id="diagrama-8" class="seq" aria-labelledby="t8">
+  <header class="seq-head">
+    <p class="seq-num" aria-hidden="true">8</p>
+    <div>
+      <h2 id="t8">Cerrar turno y arqueo de caja</h2>
+      <p class="tags"><span class="tag req">RF-04</span><span class="tag met">Turno.cerrar()</span><span class="tag met">TurnoService.calcularArqueo()</span></p>
+      <p class="desc">Cubre RF-04: el Cajero cierra el turno comparando el recaudo del sistema con el efectivo contado. La diferencia se registra para auditoría y el turno se cierra de forma transaccional.</p>
+    </div>
+  </header>
+  <figure class="diagram">
+    <figcaption class="sr-only">Diagrama de secuencia del cierre de turno: el cajero pide el resumen del turno, el servicio suma los pagos por método y cuenta los tickets cerrados, el cajero ingresa el efectivo contado, se calcula y registra la diferencia y se cierra el turno verificando las filas afectadas.</figcaption>
+<pre class="mermaid">
+sequenceDiagram
+autonumber
+actor C as Cajero
+participant P as PantallaCierreTurno
+participant TC as TurnoController
+participant S as TurnoService
+participant TR as TurnoRepository
+participant PR as PagoRepository
+participant TKR as TicketRepository
+participant T as Turno
+C-&gt;&gt;P: Abre el cierre del turno actual
+P-&gt;&gt;TC: GET /turnos/:id/resumen
+TC-&gt;&gt;S: calcularArqueo(idTurno)
+S-&gt;&gt;TR: buscarAbierto(idTurno)
+alt el turno no existe o ya está cerrado
+  TR--&gt;&gt;S: nulo
+  S--&gt;&gt;TC: error, turno no válido
+  TC--&gt;&gt;P: 409 con el mensaje
+  P--&gt;&gt;C: Muestra el mensaje de error
+else el turno está abierto
+  TR--&gt;&gt;S: Turno
+  S-&gt;&gt;PR: sumarPorMetodo(idTurno)
+  PR--&gt;&gt;S: totales de efectivo y transferencia
+  S-&gt;&gt;TKR: contarCerrados(idTurno)
+  TKR--&gt;&gt;S: número de tickets cerrados
+  S-&gt;&gt;T: calcularTotales()
+  T--&gt;&gt;S: resumen del turno
+  S--&gt;&gt;TC: resumen con efectivo esperado y tickets
+  TC--&gt;&gt;P: 200 con el resumen
+  P--&gt;&gt;C: Muestra el efectivo esperado y los tickets cerrados
+  C-&gt;&gt;P: Ingresa el efectivo contado y confirma el cierre
+  P-&gt;&gt;TC: POST /turnos/:id/cerrar con efectivoContado
+  TC-&gt;&gt;S: cerrarTurno(idTurno, efectivoContado, idCajero)
+  alt el valor contado no coincide con lo esperado
+    S-&gt;&gt;T: registrarDiferencia(efectivoContado)
+    Note right of T: la diferencia se guarda para auditoría
+  end
+  rect rgba(120,160,220,0.18)
+    Note over S,TKR: START TRANSACTION
+    S-&gt;&gt;TR: cerrar(idTurno)
+    Note right of TR: UPDATE turnos SET estado = Cerrado WHERE id = ? AND estado = Abierto
+    alt 0 filas afectadas
+      S--&gt;&gt;TC: error, el turno ya fue cerrado (ROLLBACK)
+      TC--&gt;&gt;P: 409 con el mensaje
+      P--&gt;&gt;C: Muestra el mensaje de error
+    else 1 fila afectada
+      Note over S,TKR: COMMIT
+      S--&gt;&gt;TC: turno cerrado con el resumen del arqueo
+      TC--&gt;&gt;P: 200 con el comprobante de cierre
+      P--&gt;&gt;C: Muestra el comprobante y la diferencia si hubo
+    end
+  end
+end
+</pre>
+  </figure>
+</section>
+
+  <section class="read" aria-labelledby="trazabilidad">
+    <h2 id="trazabilidad">Correcciones aplicadas al diagrama de clases</h2>
+    <p class="intro">Antes de construir los diagramas de secuencia se revisaron las observaciones del diagrama de clases. Estos son los ajustes que se aplicaron y cómo se reflejan en los diagramas.</p>
+    <div class="panel table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">Hallazgo</th>
+            <th scope="col">Corrección aplicada al diagrama de clases</th>
+            <th scope="col">Se refleja en</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>Propietario</code> aparecía como actor en RF-06 y en los diagramas 5 y 7, pero <strong>no figuraba en los roles de RNF-01</strong>.</td>
+            <td>Se elimina <code>Propietario</code> del catálogo de roles de <code>Usuario</code>. Quedan cinco roles: Administrador, Cajero, Contador, Técnico y Cliente. La necesidad de consulta del propietario se cubre con la <strong>exportación a PDF/Excel</strong> del RF-05, sin cuenta de acceso.</td>
+            <td>Diagramas 5 y 7</td>
+          </tr>
+          <tr>
+            <td>RF-06 citaba al <code>Propietario</code> como actor del monitoreo.</td>
+            <td>Se reemplaza por el <code>Administrador</code> para mantener la coherencia con RNF-01.</td>
+            <td>Diagrama 7 (y RF-06 del PDF)</td>
+          </tr>
+          <tr>
+            <td>RF-01 incluye al Administrador; el diagrama 2 solo tenía al Cajero.</td>
+            <td>El actor del diagrama 2 pasa a <strong>“Cajero o Administrador”</strong>.</td>
+            <td>Diagrama 2</td>
+          </tr>
+          <tr>
+            <td>RF-03 menciona “Empleado” y “Administrador”; el diagrama 4 usaba “Cajero” y “Técnico”.</td>
+            <td>Se define <code>Empleado</code> como superclase de <code>Cajero</code> y <code>Técnico</code>; el actor del diagrama 4 queda <strong>“Cliente, Empleado o Administrador”</strong>.</td>
+            <td>Diagrama 4</td>
+          </tr>
+          <tr>
+            <td>RF-07 incluye al Contador; el diagrama 3 solo tenía al Cajero.</td>
+            <td>Se aclara que el <strong>Cajero emite</strong> la factura y el <strong>Contador solo la consulta</strong>; se anota en la descripción del diagrama 3.</td>
+            <td>Diagrama 3</td>
+          </tr>
+          <tr>
+            <td>RF-04 (arqueo de caja del turno) no tenía flujo propio, aunque la clase <code>Turno</code> sí existía.</td>
+            <td>Se modela el cierre de turno con <code>Turno.cerrar()</code> y <code>TurnoService.calcularArqueo()</code>; se agrega el diagrama 8.</td>
+            <td>Diagrama 8 (nuevo)</td>
+          </tr>
+          <tr>
+            <td>RF-09 y RF-10 (OCR y sensores IoT) están fuera del alcance.</td>
+            <td>No se incluyen en el diagrama de clases ni en los diagramas de secuencia.</td>
+            <td>—</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <p class="foot">Los diagramas se pueden desplazar horizontalmente cuando la pantalla es angosta. El botón de tema cambia el esquema de color y vuelve a dibujar los diagramas.</p>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js"></script>
+<script>
+(function () {
+  var root = document.documentElement;
+  var media = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
+  var toggle = document.getElementById("theme-toggle");
+  var nodes = Array.prototype.slice.call(document.querySelectorAll("pre.mermaid"));
+  var sources = nodes.map(function (n) { return n.innerHTML; });
+  var mermaidReady = typeof window.mermaid !== "undefined";
+
+  function readStoredTheme() {
+    try { return localStorage.getItem("pc-theme"); } catch (e) { return null; }
+  }
+  function saveTheme(t) {
+    try { localStorage.setItem("pc-theme", t); } catch (e) {}
+  }
+
+  function renderDiagrams(theme) {
+    if (!mermaidReady) return;
+    window.mermaid.initialize({
+      startOnLoad: false,
+      theme: theme === "dark" ? "dark" : "default",
+      securityLevel: "strict"
+    });
+    nodes.forEach(function (node, i) {
+      node.removeAttribute("data-processed");
+      node.innerHTML = sources[i];
+    });
+    window.mermaid.run({ nodes: nodes }).catch(function (err) {
+      console.error("No se pudieron renderizar los diagramas:", err);
+    });
+  }
+
+  function applyTheme(theme) {
+    root.setAttribute("data-theme", theme);
+    if (toggle) {
+      var isDark = theme === "dark";
+      toggle.setAttribute("aria-pressed", String(isDark));
+      toggle.textContent = isDark ? "☀ Tema claro" : "☾ Tema oscuro";
+    }
+    renderDiagrams(theme);
+  }
+
+  var initial = readStoredTheme();
+  if (initial !== "dark" && initial !== "light") {
+    initial = media && media.matches ? "dark" : "light";
+  }
+  applyTheme(initial);
+
+  if (toggle) {
+    toggle.addEventListener("click", function () {
+      var next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
+      saveTheme(next);
+      applyTheme(next);
+    });
+  }
+
+  if (media) {
+    var onSystemChange = function (e) {
+      if (readStoredTheme()) return;
+      applyTheme(e.matches ? "dark" : "light");
+    };
+    if (media.addEventListener) media.addEventListener("change", onSystemChange);
+    else if (media.addListener) media.addListener(onSystemChange);
+  }
+})();
+</script>
+</body>
+</html>
